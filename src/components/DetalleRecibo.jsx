@@ -1,7 +1,25 @@
+import { useState, useEffect } from 'react';
 import { claseEstado } from '../utils/estado';
 import FormularioPago from './FormularioPago';
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function DetalleRecibo({ recibo, formPago, onChangePago, onSubmitPago, pagando, errorPago }) {
+  const [simulacion, setSimulacion] = useState(null);
+
+  useEffect(() => {
+    if (recibo.estado === 'PAGADO') return;
+
+    const fecha = formPago.fechaPago || new Date().toISOString().slice(0, 10);
+
+    fetch(`${API_URL}/recibos/${recibo.id}/simulacion-pago?fecha=${fecha}`)
+      .then((r) => r.json())
+      .then((datos) => {
+        setSimulacion(datos);
+        onChangePago({ target: { name: 'importePagado', value: datos.totalAPagar } });
+      });
+  }, [recibo.id, formPago.fechaPago]);
+
   return (
     <div className="detalle-recibo">
       <h2>Recibo #{recibo.id} — {recibo.tipoTributo}</h2>
@@ -21,13 +39,30 @@ function DetalleRecibo({ recibo, formPago, onChangePago, onSubmitPago, pagando, 
       </ul>
 
       {recibo.estado !== 'PAGADO' && (
-        <FormularioPago
-          formPago={formPago}
-          onChange={onChangePago}
-          onSubmit={onSubmitPago}
-          pagando={pagando}
-          error={errorPago}
-        />
+        <>
+          {simulacion && (
+            <div className="simulacion-pago">
+              <p>Si pagas el <strong>{formPago.fechaPago || 'hoy'}</strong>, debes abonar:</p>
+              {simulacion.recargo ? (
+                <p>
+                  {simulacion.importeOriginal} € + {simulacion.recargo.tipo} ({simulacion.recargo.porcentaje}%
+                  = {simulacion.recargo.importeCalculado} €)
+                  {simulacion.recargo.interesesDemora > 0 && ` + ${simulacion.recargo.interesesDemora} € de intereses`}
+                  {' '}= <strong>{simulacion.totalAPagar} €</strong>
+                </p>
+              ) : (
+                <p>Sin recargo (dentro de plazo) — <strong>{simulacion.totalAPagar} €</strong></p>
+              )}
+            </div>
+          )}
+          <FormularioPago
+            formPago={formPago}
+            onChange={onChangePago}
+            onSubmit={onSubmitPago}
+            pagando={pagando}
+            error={errorPago}
+          />
+        </>
       )}
     </div>
   );
